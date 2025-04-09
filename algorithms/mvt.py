@@ -160,7 +160,7 @@ def write_mvt_results_to_file(assignments: Dict[int, Dict[str, Dict[str, int]]],
         print(f"Error writing to file {file_HO}: {str(e)}")
 
     if status:
-        print(f"Results written to {file_path} and {file_HO}")
+        print(f"mvt.write_mvt_results_to_file(): write result to {file_path} and {file_HO}")
 
 
 class MVT:

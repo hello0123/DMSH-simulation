@@ -4,44 +4,151 @@ from collections import deque, defaultdict
 from ..core.graph import Graph
 from ..core.edge_types import EdgeType
 
-def get_victim_flow_by_BFS(flow_reversed, vertex_current, demand_reversed=None):
+
+def subset_sum(candidate_neighbor, demand_reversed):
     """
-    Get the victim flow segment using breadth-first search.
+    Find a subset of candidates whose values sum to the target value.
+    If no exact match exists, find a minimal set that exceeds the target.
     
     Args:
-        flow_reversed: The flow to analyze
-        vertex_current: Current vertex
-        demand_reversed: Optional demand to consider
+        candidate_neighbor (dict): Dictionary mapping candidate names to their values
+        demand_reversed (float/int): The target value to match
         
     Returns:
-        Victim flow segment and flow amount
+        list: List of candidate names that form the solution
     """
-    victim_segment = {}
-    victim_segment[vertex_current] = {}
-
-    queue = deque()
-    queue.append(vertex_current)
-    visited = set()
-
-    while queue:
-        vertex_pop = queue.popleft()
-        if vertex_pop == 'T' or vertex_pop not in flow_reversed:
-            continue
+    # Extract the candidates and their values
+    candidates = list(candidate_neighbor.keys())
+    values = [candidate_neighbor[c] for c in candidates]
+    
+    # Sort candidates by value in descending order for greedy approach later
+    sorted_indices = sorted(range(len(values)), key=lambda i: values[i], reverse=True)
+    sorted_candidates = [candidates[i] for i in sorted_indices]
+    sorted_values = [values[i] for i in sorted_indices]
+    
+    # Try to find exact subset sum using dynamic programming
+    n = len(candidates)
+    
+    # If the target is 0, return empty set
+    if demand_reversed == 0:
+        return []
+    
+    # If all values are 0 and target is not 0, no solution exists
+    if all(v == 0 for v in values) and demand_reversed != 0:
+        # Return minimal subset that exceeds (which is impossible with all zeros)
+        return []
+    
+    # Initialize DP table
+    # dp[i][j] = the subset of first i candidates that sums closest to j without exceeding it
+    dp = [[-float('inf')] * (int(demand_reversed) + 1) for _ in range(n + 1)]
+    dp[0][0] = 0  # Base case: empty set sums to 0
+    
+    # Keep track of choices
+    choices = {}
+    
+    # Fill the DP table
+    for i in range(1, n + 1):
+        for j in range(int(demand_reversed) + 1):
+            # Don't include current candidate
+            dp[i][j] = dp[i-1][j]
             
-        if vertex_pop not in victim_segment:
-            victim_segment[vertex_pop] = {}
+            # Try to include current candidate if possible
+            value = values[i-1]
+            if value <= j and dp[i-1][j-value] != -float('inf'):
+                if dp[i-1][j-value] + value > dp[i][j]:
+                    dp[i][j] = dp[i-1][j-value] + value
+                    choices[(i, j)] = True  # Mark that we included this candidate
+                else:
+                    choices[(i, j)] = False
+            else:
+                choices[(i, j)] = False
+    
+    # Check if we have an exact solution
+    if dp[n][int(demand_reversed)] == demand_reversed:
+        # Reconstruct the solution
+        #solution = []
+        solution = {}
+        i, j = n, int(demand_reversed)
+        while i > 0 and j > 0:
+            if choices.get((i, j), False):
+                #solution.append(candidates[i-1])
+                solution[candidates[i-1]]=candidate_neighbor[candidates[i-1]]
+                j -= values[i-1]
+            i -= 1
+        return solution
+    
+    # If no exact solution, find minimal set that exceeds target
+    # Using a greedy approach (taking largest values first)
+    #greedy_solution = []
+    greedy_solution={}
+    current_sum = 0
+    
+    for i, candidate in enumerate(sorted_candidates):
+        if current_sum >= demand_reversed:
+            break
+        #greedy_solution.append(candidate)
+        flow_amount = min(candidate_neighbor[candidate],demand_reversed-current_sum)
+        greedy_solution[candidate]=flow_amount
+        current_sum += sorted_values[i]
+    
+    return greedy_solution
 
+
+def choose_neighbor(list_neighbor,demand_reversed):
+    selected_neighbor={}
+    candidate_neighbor={}
+    for neighbor, flow_amount in list_neighbor.items():
+        if flow_amount==demand_reversed:
+            selected_neighbor[neighbor]=flow_amount
+            return selected_neighbor
+        candidate_neighbor[neighbor]=flow_amount
+    
+    selected_neighbor= subset_sum(candidate_neighbor,demand_reversed)
+
+    return selected_neighbor
+
+
+def get_victim_flow_by_BFS(flow_reversed, vertex_current, demand_reversed):
+    victim_segment = {}
+    victim_segment[vertex_current]={}
+
+    queue=deque()
+    queue.append((vertex_current,demand_reversed))
+    while queue:
+        visited=set()
+
+        tuple_vertex_pop=queue.popleft()
+        vertex_pop=tuple_vertex_pop[0]
+        flow_pop=tuple_vertex_pop[1]
+
+        if vertex_pop=='T':
+            continue
+        
+        if vertex_pop not in victim_segment:
+            victim_segment[vertex_pop]={}
+
+        list_neighbor = {}
+        flag=False
+        selected_neighbor={}
         for neighbor, flow_amount in flow_reversed[vertex_pop].items():
+            #print(f"{neighbor}, {flow_amount}")
             if neighbor not in visited:
                 visited.add(neighbor)
-                queue.append(neighbor)
-                victim_segment[vertex_pop][neighbor] = flow_amount
+                list_neighbor[neighbor]=flow_amount
+            if flow_amount==demand_reversed:
+                flag=True
+                selected_neighbor[neighbor]=flow_amount
+                break
+                
+        if not flag:
+            selected_neighbor = choose_neighbor(list_neighbor,flow_pop)
 
-    # Determine flow amount
-    if vertex_current in flow_reversed and flow_reversed[vertex_current]:
-        sample_flow = next(iter(flow_reversed[vertex_current].values()))
-        return victim_segment, sample_flow
-    return victim_segment, 0
+        for neighbor, flow_amount in selected_neighbor.items():
+            victim_segment[vertex_pop][neighbor]=flow_amount
+            tuple_neighbor=(neighbor,flow_amount)
+            queue.append(tuple_neighbor)
+
+    return victim_segment
 
 
 def create_residual_graph(G, flow):
@@ -292,4 +399,91 @@ def find_shortest_path(G_residual: Dict[str,Dict[str,Tuple[int,int]]], bool_dema
 
     return path, capacity
 
+
+def add_victim_segment(flow,ue_current,victim_segment):
+    #if ue_current not in flow:
+    #    flow[ue_current]={}
+    #print(f"add_victim_segment(): victim_segment={victim_segment}")
+    for u, dict_u in victim_segment.items():
+        for v, flow_amount in dict_u.items():
+            if u not in flow[ue_current]:
+                flow[ue_current][u]={}
+                flow[ue_current][u][v]=flow_amount
+            elif v not in flow[ue_current]:
+                flow[ue_current][u][v]=flow_amount
+            else:
+                flow[ue_current][u][v]+=flow_amount
+
+    return flow
+
+
+def add_reverse_edge(path,index_path,victim_segment):
+    num_reversed_edge=0
+
+    while True:
+        if path[index_path+num_reversed_edge][1]==EdgeType.BACKWARD or path[index_path+num_reversed_edge][1]==EdgeType.VERTEX_REV:
+            u=path[index_path+num_reversed_edge][0]
+            v=path[index_path+num_reversed_edge-1][0]
+            if u not in victim_segment:
+                victim_segment[u]={}
+                if v not in victim_segment[u]:
+                    victim_segment[u][v]=1
+                else:
+                    victim_segment[u][v]+=1
+            num_reversed_edge+=1
+        else:
+            break
+
+    return victim_segment, num_reversed_edge
+
+
+def remove_victim_segment(flow,ue_reversed,victim_segment):
+    for u, dict_u in victim_segment.items():
+        for v, flow_amount in dict_u.items():
+            flow[ue_reversed][u][v]-=flow_amount
+            if flow[ue_reversed][u][v]==0:
+                del flow[ue_reversed][u][v]
+                if not flow[ue_reversed][u]:
+                    del flow[ue_reversed][u]
+
+    return flow
+
+
+#path format: (node, edge type, reversed_ue, demand)
+def new_update_flow(flow, path, target_ue):
+    flow[target_ue]={}
+    
+    index_path=0
+    vertex_previous = None
+    ue_current = target_ue
+    while True:
+        e = path[index_path]
+
+        if e==path[0]:
+            index_path+=1
+            vertex_previous=e[0]
+            continue
+
+        if e[1]==EdgeType.FORWARD or e[1]==EdgeType.VERTEX_FOR:
+            #add forward edge
+            if vertex_previous not in flow[ue_current].keys():
+                flow[ue_current][vertex_previous] = {}
+            flow[ue_current][vertex_previous][e[0]]=e[3]
+            #break condition
+            if e[0]=='T':
+                break
+            #update loop var
+            vertex_previous = e[0]
+            index_path+=1
+        
+        else:
+            ue_reversed = e[2]
+            demand_reversed = e[3]
+            victim_segment=get_victim_flow_by_BFS(flow[ue_reversed],vertex_previous,demand_reversed)
+            flow=add_victim_segment(flow,ue_current,victim_segment)
+            victim_segment, num_reverse_edge = add_reverse_edge(path,index_path,victim_segment)
+            flow=remove_victim_segment(flow,ue_reversed,victim_segment)
+            ue_current = ue_reversed
+            index_path+=num_reverse_edge
+            vertex_previous=path[index_path-1][0]
 

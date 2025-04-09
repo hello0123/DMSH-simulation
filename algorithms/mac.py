@@ -307,6 +307,7 @@ class MAC:
         # Write outputs
         write_path_output(user_paths, handovers_per_user, file_MAC_path)
         write_handover_output(handover_count, file_MAC_HO)
+        print(f"mac.run(): write result to {file_MAC_path} and {file_MAC_HO}")
         
         return handover_count, user_paths
 
