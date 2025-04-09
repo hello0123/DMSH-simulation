@@ -9,7 +9,8 @@ from ..core.edge_types import EdgeType
 from ..utils.network_flow import (
     create_residual_graph, 
     find_shortest_path,
-    get_victim_flow_by_BFS
+    add_victim_segment,
+    add_reverse_edge,
 )
 
 class MSHAlgorithm:
@@ -23,91 +24,62 @@ class MSHAlgorithm:
     def __init__(self):
         self.name = "Minimum Satellite Handovers (MSH)"
     
+    #staticmethod
+    def get_victim_flow_by_BFS(flow_reversed, vertex_current):
+        victim_segment = {}
+        victim_segment[vertex_current]={}
+
+        queue=deque()
+        queue.append(vertex_current)
+        visited=set()
+
+        while queue:
+            vertex_pop=queue.popleft()
+            if vertex_pop=='T' or vertex_pop not in flow_reversed:
+                continue
+            if vertex_pop not in victim_segment:
+                victim_segment[vertex_pop]={}
+
+            for neighbor, flow_amount in flow_reversed[vertex_pop].items():
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+                            victim_segment[vertex_pop][neighbor]=flow_amount
+
+        return victim_segment, flow_amount
+
     @staticmethod
-    def add_victim_segment(flow, ue_current, victim_segment):
-        """
-        Add victim segment to flow.
-        
-        Args:
-            flow: Current flow
-            ue_current: Current UE
-            victim_segment: Victim segment to add
-            
-        Returns:
-            Updated flow
-        """
+    def new_remove_victim_segment(flow,size_flow,ue_reversed,flow_reversed,flow_path,victim_segment):
+        #print("new_remove_victim_segment()")
+        #print(f"flow_path={flow_path}")
+        #print(f"flow_reversed={flow_reversed}")
+        if flow_path!=flow_reversed:
+            #print("new_remove_victim_segment(): flow_victim!=flow_reversed")
+            #print(f"flow_victim={flow_path}, flow_reversed={flow_reversed}")
+            for u, dict_u in flow[ue_reversed].items():
+                for v in dict_u.keys():
+                    flow[ue_reversed][u][v]-=flow_reversed
+
+            new_ue=str(size_flow)
+            flow[new_ue]={}
+            for u, dict_u in flow[ue_reversed].items():
+                if u not in flow[new_ue]:
+                    flow[new_ue][u]={}
+                if u not in victim_segment.keys():
+                    for v in dict_u.keys():
+                        flow[new_ue][u][v]=flow_reversed
+            return flow
+
         for u, dict_u in victim_segment.items():
-            for v, flow_amount in dict_u.items():
-                if u not in flow[ue_current]:
-                    flow[ue_current][u] = {}
-                    flow[ue_current][u][v] = flow_amount
-                elif v not in flow[ue_current][u]:
-                    flow[ue_current][u][v] = flow_amount
-                else:
-                    flow[ue_current][u][v] += flow_amount
+            for v in dict_u.keys():
+                del flow[ue_reversed][u][v]
+                if not flow[ue_reversed][u]:
+                    del flow[ue_reversed][u]
 
         return flow
 
     @staticmethod
-    def add_reverse_edge(path, index_path, victim_segment):
-        """
-        Add reverse edges to victim segment.
-        
-        Args:
-            path: Current path
-            index_path: Current index in path
-            victim_segment: Victim segment
-            
-        Returns:
-            Tuple of (updated_victim_segment, num_reversed_edge)
-        """
-        num_reversed_edge = 0
-
-        while True:
-            if (index_path + num_reversed_edge < len(path) and 
-                (path[index_path + num_reversed_edge][1] == EdgeType.BACKWARD or 
-                 path[index_path + num_reversed_edge][1] == EdgeType.VERTEX_REV)):
-                
-                u = path[index_path + num_reversed_edge][0]
-                v = path[index_path + num_reversed_edge - 1][0]
-                if u not in victim_segment:
-                    victim_segment[u] = {}
-                if v not in victim_segment[u]:
-                    victim_segment[u][v] = 1
-                else:
-                    victim_segment[u][v] += 1
-                num_reversed_edge += 1
-            else:
-                break
-
-        return victim_segment, num_reversed_edge
-
-    @staticmethod
-    def remove_victim_segment(flow, ue_reversed, victim_segment):
-        """
-        Remove victim segment from flow.
-        
-        Args:
-            flow: Current flow
-            ue_reversed: UE to remove from
-            victim_segment: Segment to remove
-            
-        Returns:
-            Updated flow
-        """
-        for u, dict_u in victim_segment.items():
-            for v, flow_amount in dict_u.items():
-                if u in flow[ue_reversed] and v in flow[ue_reversed][u]:
-                    flow[ue_reversed][u][v] -= flow_amount
-                    if flow[ue_reversed][u][v] <= 0:
-                        del flow[ue_reversed][u][v]
-                        if not flow[ue_reversed][u]:
-                            del flow[ue_reversed][u]
-
-        return flow
-
-    @staticmethod
-    def new_update_flow(flow, path, size_flow):
+    def update_flow(flow, path, size_flow):
         """
         Update flow with new path.
         
@@ -119,56 +91,47 @@ class MSHAlgorithm:
         Returns:
             Updated size_flow
         """
-        if not path:
-            return size_flow
-            
-        flow_path = path[0][3]
-        new_size_flow = size_flow
+        flow_path=path[0][3]
+        new_size_flow=size_flow
 
-        ue_current = str(size_flow)
+        ue_current=str(size_flow)
         if ue_current not in flow:
-            flow[ue_current] = {}
-        index_path = 0
-        vertex_previous = None
-        
-        while index_path < len(path):
-            e = path[index_path]
+            flow[ue_current]={}
+        index_path=0
+        vertex_previous=None
 
-            if e == path[0]:
-                index_path += 1
-                vertex_previous = e[0]
+        while True:
+            e=path[index_path]
+
+            if e==path[0]:
+                index_path+=1
+                vertex_previous=e[0]
                 continue
             
-            # e is a forward edge
-            if e[1] == EdgeType.FORWARD or e[1] == EdgeType.VERTEX_FOR:
-                # Add forward edge
-                if vertex_previous not in flow[ue_current]:
+            #e is a forward edge
+            if path[index_path][1]==EdgeType.FORWARD or path[index_path][1]==EdgeType.VERTEX_FOR:
+                if vertex_previous not in flow[ue_current].keys():
                     flow[ue_current][vertex_previous] = {}
-                flow[ue_current][vertex_previous][e[0]] = flow_path
-                # Break condition
-                if e[0] == 'T':
+                flow[ue_current][vertex_previous][e[0]]=flow_path
+
+                if e[0]=='T':
                     break
-                # Update loop var
+
                 vertex_previous = e[0]
-                index_path += 1
+                index_path+=1
+
             else:
                 ue_reversed = e[2]
-                if ue_reversed not in flow:
-                    # Skip if the reversed UE doesn't exist in flow
-                    index_path += 1
-                    continue
-                    
-                victim_segment, flow_reversed = get_victim_flow_by_BFS(flow[ue_reversed], vertex_previous)
-                flow = MSHAlgorithm.add_victim_segment(flow, ue_current, victim_segment)
-                victim_segment, num_reverse_edge = MSHAlgorithm.add_reverse_edge(path, index_path, victim_segment)
-                flow = MSHAlgorithm.remove_victim_segment(flow, ue_reversed, victim_segment)
+                victim_segment, flow_reversed=MSHAlgorithm.get_victim_flow_by_BFS(flow[ue_reversed],vertex_previous)
+                flow=add_victim_segment(flow,ue_current,victim_segment)
+                victim_segment, num_reverse_edge = add_reverse_edge(path,index_path,victim_segment)
+                flow=MSHAlgorithm.new_remove_victim_segment(flow,size_flow,ue_reversed,flow_reversed,flow_path,victim_segment)
                 ue_current = ue_reversed
-                index_path += num_reverse_edge
-                if index_path < len(path):
-                    vertex_previous = path[index_path - 1][0]
+                index_path+=num_reverse_edge
+                vertex_previous=path[index_path-1][0]
 
                 if flow_reversed != flow_path:
-                    new_size_flow += 1
+                    new_size_flow+=1
 
         return new_size_flow
 
@@ -312,13 +275,8 @@ class MSHAlgorithm:
         size_flow = 0
         while remaining_demand > 0:
             G_residual = create_residual_graph(G, flow)
-            path, demand = find_shortest_path(G_residual, False, None)
-            
-            if not path or demand is None or demand <= 0:
-                print(f"MSH: Could not find a valid path, stopping with {remaining_demand} remaining demand.")
-                break
-                
-            size_flow = self.new_update_flow(flow, path, size_flow)
+            path, demand = find_shortest_path(G_residual, False, None)    
+            size_flow = MSHAlgorithm.update_flow(flow, path, size_flow)
 
             remaining_demand -= demand
             size_flow += 1
