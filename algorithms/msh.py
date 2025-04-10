@@ -332,23 +332,6 @@ class MSHAlgorithm:
 
 def MSH(G, commodities, file_flow_path, file_flow_HO):
     """
-    Legacy wrapper function for MSH algorithm.
-    
-    Args:
-        G: Graph
-        commodities: Dictionary of commodities
-        file_flow_path: Path output file
-        file_flow_HO: Handover output file
-        
-    Returns:
-        Total handovers count
-    """
-    # This function exists for backward compatibility
-    return new_MSH(G, commodities, file_flow_path, file_flow_HO)
-
-
-def new_MSH(G, commodities, file_flow_path, file_flow_HO):
-    """
     Run the MSH algorithm.
     
     Args:

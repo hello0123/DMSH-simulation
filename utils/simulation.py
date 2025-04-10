@@ -39,7 +39,7 @@ from satellite_scheduling.utils.io_utils import save_2d_list, load_2d_list
 # Import algorithm functions directly
 from satellite_scheduling.algorithms.mvt import MVT
 from satellite_scheduling.algorithms.mac import MAC
-from satellite_scheduling.algorithms.msh import new_MSH
+from satellite_scheduling.algorithms.msh import MSH
 from satellite_scheduling.algorithms.pack_method import pack_method
 
 
@@ -317,7 +317,7 @@ def simulation_node_capacity(data_dir: str = "result/node_capacity",
         # Run MSH algorithm
         file_MSH_path = f"{data_dir}/path/path_MSH_{node_capacity}.txt"
         file_MSH_HO = f"{data_dir}/HO/HO_MSH_{node_capacity}.txt"
-        new_MSH(G, commodities, file_MSH_path, file_MSH_HO)
+        MSH(G, commodities, file_MSH_path, file_MSH_HO)
         
     print("Node capacity simulation completed.")
 
@@ -381,7 +381,7 @@ def simulation_ue_request(data_dir: str = "result/UE_request",
         # Run MSH algorithm
         file_MSH_path = f"{data_dir}/path/path_MSH_{cut}.txt"
         file_MSH_HO = f"{data_dir}/HO/HO_MSH_{cut}.txt"
-        new_MSH(G, commodities, file_MSH_path, file_MSH_HO)
+        MSH(G, commodities, file_MSH_path, file_MSH_HO)
         
     print("UE request simulation completed.")
 
@@ -530,7 +530,7 @@ def simulation_10(t_sat_file: str = "t_sat.txt") -> None:
 
     file_MSH_path = f"test_MSH_{initial_node_capacity}.txt"
     file_MSH_HO = f"test_MSH_{initial_node_capacity}.txt"
-    msh.new_MSH(G, commodities, file_MSH_path, file_MSH_HO)
+    MSH(G, commodities, file_MSH_path, file_MSH_HO)
 
 
 def plot_results(directory: str, name: str, output_file: Optional[str] = None) -> None:
@@ -636,8 +636,8 @@ def run_all_simulations(data_dir: str = "result", t_sat_file: str = "t_sat.txt")
     simulation_ue_request(data_dir=ue_request_dir, t_sat_file=t_sat_file)
     
     # Generate plots
-    plot_results(f"{node_capacity_dir}/HO", "node capacity")
-    plot_results(f"{ue_request_dir}/HO", "UE request")
+    #plot_results(f"{node_capacity_dir}/HO", "node capacity")
+    #plot_results(f"{ue_request_dir}/HO", "UE request")
     
     print("All simulations and visualizations completed.")
 
@@ -645,3 +645,4 @@ def run_all_simulations(data_dir: str = "result", t_sat_file: str = "t_sat.txt")
 if __name__ == "__main__":
     # Example usage
     run_all_simulations()
+    #simulation_10()
